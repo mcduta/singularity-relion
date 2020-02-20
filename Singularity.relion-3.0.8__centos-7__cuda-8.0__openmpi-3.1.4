@@ -1,0 +1,81 @@
+BootStrap: library
+From: mcduta/diamond-sandbox/relion-dependencies:latest
+
+###BootStrap: localimage
+###From: relion-3.0.8-dependencies__centos-7__cuda-8.0__openmpi-3.1.4.sif
+
+
+%help
+    Container for the Relion (REgularised LIkelihood OptimisatioN),
+    which implements an empirical Bayesian approach to refinement of
+    (multiple) 3D reconstructions or 2D class averages in electron
+    cryo-microscopy (cryo-EM).
+
+%labels
+    maintainer M. Duta
+    version 1.3
+
+%files
+    # each line is a pair of <source> (host system path) and <destination> (container path)
+
+
+#============================================================#
+# *** Install the software
+#============================================================#
+
+%post
+    #
+    # --- mount points to facilitate application disk I/O
+    mkdir -p /applications/relion
+
+
+    #
+    # --- install relion
+    RELION_VERSION=3.0.8
+    RELION_PREFIX=/opt/relion/${RELION_VERSION}
+    RELION_CUSTOM_GCC_FLAGS="-O3 -mavx2"
+    RELION_CUSTOM_NVCC_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_60,code=sm_60"
+
+    wget https://github.com/3dem/relion/archive/${RELION_VERSION}.tar.gz --output-document=relion-${RELION_VERSION}.tar.gz
+    tar -xf relion-${RELION_VERSION}.tar.gz
+    mkdir -p build/ && rm -fr build/* && cd build/
+
+    cmake -D CMAKE_INSTALL_PREFIX=${RELION_PREFIX} \
+          -D CMAKE_C_FLAGS=${RELION_CUSTOM_GCC_FLAGS} -D CMAKE_CXX_FLAGS=${RELION_CUSTOM_GCC_FLAGS} \
+          -D CUDA_NVCC_FLAGS="${RELION_CUSTOM_NVCC_FLAGS}" -D RELION_NVCC_FLAGS="${RELION_CUSTOM_NVCC_FLAGS}" \
+          -D CMAKE_INSTALL_RPATH_USE_LINK_PATH=ON -D GUI=OFF \
+          ../relion-${RELION_VERSION}
+
+    make install
+    cd ../ && rm -fr relion-${RELION_VERSION}*
+
+
+#============================================================#
+# *** Set environment: PATH, LD_LIBRARY_PATH, etc.
+#============================================================#
+
+%environment
+    RELION_VERSION=3.0.8
+    RELION_PREFIX=/opt/relion/${RELION_VERSION}
+
+    export PATH=${RELION_PREFIX}/bin:${PATH}
+
+
+#============================================================#
+# script to run with command "singularity run"
+#============================================================#
+
+%runscript
+
+
+#============================================================#
+# scriptlet to run with command "singularity test";
+#  if tests need a different environment than that
+#  during the building phase (e.g. tests need the
+#  environment defined in "%environment"), the image
+#  can be built by omitting the test
+#       sudo singularity build --notest mpirun.simg Singularity
+#============================================================#
+
+%test
+    command -v type relion_refine_mpi >/dev/null 2>&1 && { echo >&2 " Relion: PASSED"; } || { echo >&2 " Relion: ERROR"; }
